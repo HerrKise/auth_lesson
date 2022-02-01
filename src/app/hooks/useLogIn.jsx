@@ -1,19 +1,17 @@
 import React, { useContext, useState, useEffect } from "react";
 import PropTypes from "prop-types";
 import axios from "axios";
-import userService from "../services/user.service";
 import { toast } from "react-toastify";
 import { setTokens } from "../services/localStorage.service";
 
-const httpAuth = axios.create();
-const AuthContext = React.createContext();
+const httpLogIn = axios.create();
+const LogInContext = React.createContext();
 
-export const useAuth = () => {
-    return useContext(AuthContext);
+export const useLogIn = () => {
+    return useContext(LogInContext);
 };
 
-const AuthProvider = ({ children }) => {
-    const [currentUser, setCurrentUser] = useState({});
+const LogInProvider = ({ children }) => {
     const [error, setError] = useState(null);
     useEffect(() => {
         if (error !== null) {
@@ -26,49 +24,47 @@ const AuthProvider = ({ children }) => {
         setError(message);
     }
 
-    async function signUp({ email, password, ...rest }) {
-        const url = `https://identitytoolkit.googleapis.com/v1/accounts:signUp?key=${process.env.REACT_APP_FIREBASE_KEY}`;
+    async function signIn({ email, password, ...rest }) {
+        const url = `https://identitytoolkit.googleapis.com/v1/accounts:signInWithPassword?key=${process.env.REACT_APP_FIREBASE_KEY}`;
         try {
-            const { data } = await httpAuth.post(url, {
+            const { data } = await httpLogIn.post(url, {
                 email,
                 password,
                 returnSecureToken: true
             });
             setTokens(data);
-            await createUser({ _id: data.localId, email, ...rest });
         } catch (error) {
             errorCatcher(error);
             const { code, message } = error.response.data.error;
+            console.log(code, message);
             if (code === 400) {
-                if (message === "EMAIL_EXISTS") {
+                if (message === "EMAIL_NOT_FOUND") {
                     const errorObject = {
-                        email: "Пользователь с таким Email уже существует"
+                        email: "Пользователя с таким Email не существует"
+                    };
+                    throw errorObject;
+                }
+                if (message === "INVALID_PASSWORD") {
+                    const errorObject = {
+                        password: "Неверный пароль"
                     };
                     throw errorObject;
                 }
             }
         }
     }
-    async function createUser(data) {
-        try {
-            const { content } = await userService.create(data);
-            setCurrentUser(content);
-        } catch (error) {
-            errorCatcher(error);
-        }
-    }
     return (
-        <AuthContext.Provider value={{ signUp, currentUser }}>
+        <LogInContext.Provider value={{ signIn }}>
             {children}
-        </AuthContext.Provider>
+        </LogInContext.Provider>
     );
 };
 
-AuthProvider.propTypes = {
+LogInProvider.propTypes = {
     children: PropTypes.oneOfType([
         PropTypes.arrayOf(PropTypes.node),
         PropTypes.node
     ])
 };
 
-export default AuthProvider;
+export default LogInProvider;
